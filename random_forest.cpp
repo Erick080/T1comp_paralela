@@ -14,6 +14,8 @@
 // Para o paralelismo com OpenMP
 #include <omp.h>
 
+#include <chrono>
+
 // Estrutura para manter os dados de forma organizada
 struct Dataset {
     std::vector<std::vector<double>> features;
@@ -324,10 +326,13 @@ public:
         num_features_subset = static_cast<int>(sqrt(num_features));
 
         // A DIRETIVA OPENMP PARA PARALELIZAR O LOOP
-        omp_set_num_threads(1);
+        omp_set_num_threads(4);
         printf("Numero de arvores = %d\n", num_trees);
         #pragma omp parallel for
         for (int i = 0; i < num_trees; ++i) {
+            if (i == 0){
+                printf("Iniciando Random Forest com %d threads\n", omp_get_num_threads());
+            }
             // 1. Bootstrap Sampling (amostragem com reposição)
             std::vector<int> sample_indices;
             
@@ -342,7 +347,7 @@ public:
             // 2. Treina uma árvore com a amostra
             trees[i] = DecisionTree(max_depth, min_samples_split, num_features_subset);
             trees[i].train(data, sample_indices);
-            printf("Treinou uma arvore\n");
+            printf("Treinou arvore %d\n", i);
         }
     }
 
@@ -369,14 +374,17 @@ int main() {
         // Usando structured binding do C++17 para desempacotar o par
         auto [train_data, test_data] = train_test_split(full_data, 0.2); // 80% treino, 20% teste
 
-        std::cout << "\nCriando e treinando a Random Forest com " << omp_get_num_threads() << " threads..." << std::endl;
-        
         RandomForest forest(50, 5);
         
+        auto start = std::chrono::high_resolution_clock::now();
+
         // TREINA APENAS COM OS DADOS DE TREINO
         forest.train(train_data);
         
-        std::cout << "Treinamento concluído." << std::endl;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+
+        double elapsed_time_seconds = elapsed_seconds.count();
 
         // AVALIA APENAS COM OS DADOS DE TESTE
         std::cout << "\nIniciando avaliação no conjunto de teste..." << std::endl;
@@ -407,6 +415,7 @@ int main() {
         std::cout << "Acurácia no conjunto de teste: " << accuracy * 100.0 << "%" << std::endl;
         std::cout << "------------------------------------" << std::endl;
 
+        printf("Treinamento concluido em %f segundos\n", elapsed_time_seconds);
 
     } catch (const std::exception& e) {
         std::cerr << "Erro: " << e.what() << std::endl;
