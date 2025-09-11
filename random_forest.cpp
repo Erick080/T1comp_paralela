@@ -313,7 +313,7 @@ private:
     std::vector<DecisionTree> trees;
 
 public:
-    RandomForest(int n_trees = 100, int depth = 10, int min_samples = 2)
+    RandomForest(int n_trees, int depth, int min_samples = 2)
         : num_trees(n_trees), max_depth(depth), min_samples_split(min_samples) {
             trees.resize(n_trees);
         }
@@ -324,6 +324,8 @@ public:
         num_features_subset = static_cast<int>(sqrt(num_features));
 
         // A DIRETIVA OPENMP PARA PARALELIZAR O LOOP
+        omp_set_num_threads(1);
+        printf("Numero de arvores = %d\n", num_trees);
         #pragma omp parallel for
         for (int i = 0; i < num_trees; ++i) {
             // 1. Bootstrap Sampling (amostragem com reposição)
@@ -340,6 +342,7 @@ public:
             // 2. Treina uma árvore com a amostra
             trees[i] = DecisionTree(max_depth, min_samples_split, num_features_subset);
             trees[i].train(data, sample_indices);
+            printf("Treinou uma arvore\n");
         }
     }
 
@@ -359,16 +362,16 @@ public:
 // =================================================================================
 int main() {
     try {
-        std::string filename = "weatherAUS_rainfall_prediction.csv";
+        std::string filename = "weatherAUS_reduced_05.csv";
         Dataset full_data = load_csv_and_encode(filename);
 
         // AQUI FAZEMOS O SPLIT!
         // Usando structured binding do C++17 para desempacotar o par
         auto [train_data, test_data] = train_test_split(full_data, 0.2); // 80% treino, 20% teste
 
-        std::cout << "\nCriando e treinando a Random Forest com " << omp_get_max_threads() << " threads..." << std::endl;
+        std::cout << "\nCriando e treinando a Random Forest com " << omp_get_num_threads() << " threads..." << std::endl;
         
-        RandomForest forest(100, 5);
+        RandomForest forest(50, 5);
         
         // TREINA APENAS COM OS DADOS DE TREINO
         forest.train(train_data);
