@@ -326,9 +326,9 @@ public:
         num_features_subset = static_cast<int>(sqrt(num_features));
 
         // A DIRETIVA OPENMP PARA PARALELIZAR O LOOP
-        omp_set_num_threads(1);
+        omp_set_num_threads(4);
         printf("Numero de arvores = %d\n", num_trees);
-        #pragma omp parallel for
+        #pragma omp parallel for schedule (dynamic)
         for (int i = 0; i < num_trees; ++i) {
             if (i == 0){
                 printf("Iniciando Random Forest com %d threads\n", omp_get_num_threads());
@@ -347,7 +347,7 @@ public:
             // 2. Treina uma árvore com a amostra
             trees[i] = DecisionTree(max_depth, min_samples_split, num_features_subset);
             trees[i].train(data, sample_indices);
-            printf("Treinou arvore %d\n", i);
+            printf("Treinou arvore %d (thread %d)\n", i, omp_get_thread_num());
         }
     }
 
