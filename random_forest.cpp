@@ -326,7 +326,7 @@ public:
         num_features_subset = static_cast<int>(sqrt(num_features));
 
         // A DIRETIVA OPENMP PARA PARALELIZAR O LOOP
-        omp_set_num_threads(4);
+        omp_set_num_threads(1);
         printf("Numero de arvores = %d\n", num_trees);
         #pragma omp parallel for
         for (int i = 0; i < num_trees; ++i) {
@@ -367,7 +367,7 @@ public:
 // =================================================================================
 int main() {
     try {
-        std::string filename = "weatherAUS_reduced_05.csv";
+        std::string filename = "weatherAUS_reduced_30.csv";
         Dataset full_data = load_csv_and_encode(filename);
 
         // AQUI FAZEMOS O SPLIT!
