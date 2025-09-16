@@ -6,15 +6,15 @@
 #include <memory>
 #include <numeric>
 #include <stdexcept>
-
 #include <fstream>
 #include <sstream>
 #include <string>
-
-// Para o paralelismo com OpenMP
 #include <omp.h>
-
 #include <chrono>
+
+#define SEED 11
+#define NUM_THREADS 4
+#define NUM_TREES 32
 
 // Estrutura para manter os dados de forma organizada
 struct Dataset {
@@ -326,12 +326,14 @@ public:
         num_features_subset = static_cast<int>(sqrt(num_features));
 
         // A DIRETIVA OPENMP PARA PARALELIZAR O LOOP
-        omp_set_num_threads(4);
+        omp_set_num_threads(NUM_THREADS);
         printf("Numero de arvores = %d\n", num_trees);
+        fflush(stdout);
         #pragma omp parallel for schedule (dynamic)
         for (int i = 0; i < num_trees; ++i) {
-            if (i == 0){
-                printf("Iniciando Random Forest com %d threads\n", omp_get_num_threads());
+                if (i == 0){
+                    printf("Iniciando Random Forest com %d threads\n", omp_get_num_threads());
+                    fflush(stdout);
             }
             // 1. Bootstrap Sampling (amostragem com reposição)
             std::vector<int> sample_indices;
@@ -348,6 +350,7 @@ public:
             trees[i] = DecisionTree(max_depth, min_samples_split, num_features_subset);
             trees[i].train(data, sample_indices);
             printf("Treinou arvore %d (thread %d)\n", i, omp_get_thread_num());
+	        fflush(stdout);
         }
     }
 
@@ -367,6 +370,7 @@ public:
 // =================================================================================
 int main() {
     try {
+        srand(SEED);
         std::string filename = "weatherAUS_reduced_30.csv";
         Dataset full_data = load_csv_and_encode(filename);
 
@@ -374,7 +378,7 @@ int main() {
         // Usando structured binding do C++17 para desempacotar o par
         auto [train_data, test_data] = train_test_split(full_data, 0.2); // 80% treino, 20% teste
 
-        RandomForest forest(50, 5);
+        RandomForest forest(NUM_TREES, 5);
         
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -407,6 +411,7 @@ int main() {
             } else {
                 std::cout << " (Incorreto)" << std::endl;
             }
+	   fflush(stdout);
         }
         
         // Calcula e exibe a acurácia
@@ -416,6 +421,7 @@ int main() {
         std::cout << "------------------------------------" << std::endl;
 
         printf("Treinamento concluido em %f segundos\n", elapsed_time_seconds);
+	fflush(stdout);
 
     } catch (const std::exception& e) {
         std::cerr << "Erro: " << e.what() << std::endl;
