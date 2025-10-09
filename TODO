@@ -1,0 +1,7 @@
+ - Processos trabalhadores leem do mesmo arquivo de dataset
+ - Processo coordenador define quantas árvores cada processo deve treinar
+ - Cada processo treina x árvores 
+ - Enviam mensagem para coordenador quando terminarem
+ - Quando todos terminaram começa inferências. Coordenador envia dados para cada processo trabalhador fazer inferências
+ - Cada trabalhador retorna resultados da inferencia
+ - Coordenador consolida resultados e resultado será a maioria da inferência.
