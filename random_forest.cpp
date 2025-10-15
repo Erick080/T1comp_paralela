@@ -14,9 +14,13 @@
 #include <mpi.h>
 
 #define NUM_TREES 32
+#define TREES_PER_ROUND 2
 
 // TAGS MPI
-#define OK_TAG 1
+#define TAG_OK 1
+#define TAG_ITERATION_END 2
+#define TAG_NO_TREES_LEFT 3 
+#define TAG_INFERENCE_END 4
 
 // Estrutura para manter os dados de forma organizada
 struct Dataset {
@@ -314,12 +318,17 @@ public:
             trees.resize(n_trees);
         }
 
-    void train(const Dataset& data) {
+    void increase_tree_size(int x) {
+        num_trees += x;
+        trees.resize(num_trees);
+    }
+
+    void train(const Dataset& data, int index) {
         int num_features = data.features[0].size();
         // Heurística comum: sqrt(num_features) para classificação
         num_features_subset = static_cast<int>(sqrt(num_features));
 
-        for (int i = 0; i < num_trees; ++i) {
+        for (int i = index; i < num_trees; ++i) {
             // 1. Bootstrap Sampling (amostragem com reposição)
             std::vector<int> sample_indices;
             
@@ -340,15 +349,13 @@ public:
         }
     }
 
-    int predict(const std::vector<double>& features) {
+    std::map<int, int> predict(const std::vector<double>& features) {
         std::map<int, int> votes;
         for (int i = 0; i < num_trees; ++i) {
             votes[trees[i].predict(features)]++;
         }
-        return std::max_element(votes.begin(), votes.end(),
-            [](const auto& a, const auto& b){ return a.second < b.second; })->first;
-    }
-};
+        return votes;
+    };
 
 
 // =================================================================================
@@ -371,21 +378,51 @@ int main(int argc, char** argv) {
         MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
         
-        if (mpi_rank == 0){
-            // codigo do coordenador
+        // codigo do coordenador
+        if (mpi_rank == 0){ 
             bool flag_finished = false;
-            for (int i = 1; i < num_processes; i++){
-                MPI_Recv(&flag_finished, 1, MPI_CXX_BOOL, i, OK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                printf("Rank %d terminou de treinar suas arvores.\n", i);
+            int process_number;
+            // esperando os treinamentos acabar
+            for (int i = 0; i < NUM_TREES;){
+                MPI_Recv(&process_number, 1, MPI_INT, MPI_ANY_SOURCE, TAG_ITERATION_END, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                i += TREES_PER_ROUND;
+                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, process_number, OK_TAG, MPI_COMM_WORLD);
             }
+            flag_finished = true;
+
+            for (int i = 1; i < num_processes; i++){
+                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, i, TAG_NO_TREES_LEFT, MPI_COMM_WORLD);
+            } 
+
+            // recebe resultados da inferencia
+                // junta os resultados parciais e calcula o final
+
         }
         else{
             // codigo do trabalhador
-            RandomForest forest(NUM_TREES / (num_processes - 1), 5, mpi_rank);
-            forest.train(train_data);
+            bool finished = false;
 
-            bool finished = true;
-            MPI_Send(&finished, 1, MPI_CXX_BOOL, 0, OK_TAG, MPI_COMM_WORLD);
+            RandomForest forest(TREES_PER_ROUND, 5, mpi_rank);
+            int tree_index = 0;
+
+            while (!finished){
+                MPI_Send(&mpi_rank, 1, MPI_INT, 0, TAG_ITERATION_END, MPI_COMM_WORLD);
+                MPI_Recv(&flag_finished, 1, MPI_CXX_BOOL, 0, OK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                
+                if (flag_finished) {
+                    finished = true;
+                    break;
+                }
+
+                forest.increase_tree_size(TREES_PER_ROUND);
+                forest.train(train_data, tree_index);
+                tree_index += TREES_PER_ROUND;
+            }
+            
+            // faz a inferencia assim que termina
+                // envia de volta a matriz de resultados
+            
+            MPI_Send(&finished, 1, MPI_CXX_BOOL, 0, TAG_INFERENCE_END, MPI_COMM_WORLD);
         }
         
         MPI_Finalize();
@@ -404,22 +441,22 @@ int main(int argc, char** argv) {
     //         return 0;
     //     }
 
-    //     int correct_predictions = 0;
-    //     for(size_t i = 0; i < test_data.features.size(); ++i) {
-    //         int prediction = forest.predict(test_data.features[i]);
-    //         int real_label = test_data.labels[i];
+        // int correct_predictions = 0;
+        // for(size_t i = 0; i < test_data.features.size(); ++i) {
+        //     int prediction = forest.predict(test_data.features[i]);
+        //     int real_label = test_data.labels[i];
             
-    //         std::cout << "Amostra de teste " << i << ": Predição=" << prediction 
-    //                   << ", Real=" << real_label;
+        //     std::cout << "Amostra de teste " << i << ": Predição=" << prediction 
+        //               << ", Real=" << real_label;
 
-    //         if (prediction == real_label) {
-    //             correct_predictions++;
-    //             std::cout << " (Correto)" << std::endl;
-    //         } else {
-    //             std::cout << " (Incorreto)" << std::endl;
-    //         }
-	//         fflush(stdout);
-    //     }
+        //     if (prediction == real_label) {
+        //         correct_predictions++;
+        //         std::cout << " (Correto)" << std::endl;
+        //     } else {
+        //         std::cout << " (Incorreto)" << std::endl;
+        //     }
+	    //     fflush(stdout);
+        // }
         
     //     // Calcula e exibe a acurácia
     //     double accuracy = static_cast<double>(correct_predictions) / test_data.features.size();
