@@ -355,8 +355,8 @@ public:
             votes[trees[i].predict(features)]++;
         }
         return votes;
-    };
-
+    }
+};
 
 // =================================================================================
 // FUNÇÃO MAIN
@@ -386,7 +386,7 @@ int main(int argc, char** argv) {
             for (int i = 0; i < NUM_TREES;){
                 MPI_Recv(&process_number, 1, MPI_INT, MPI_ANY_SOURCE, TAG_ITERATION_END, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 i += TREES_PER_ROUND;
-                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, process_number, OK_TAG, MPI_COMM_WORLD);
+                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, process_number, TAG_OK, MPI_COMM_WORLD);
             }
             flag_finished = true;
 
@@ -407,10 +407,9 @@ int main(int argc, char** argv) {
 
             while (!finished){
                 MPI_Send(&mpi_rank, 1, MPI_INT, 0, TAG_ITERATION_END, MPI_COMM_WORLD);
-                MPI_Recv(&flag_finished, 1, MPI_CXX_BOOL, 0, OK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&finished, 1, MPI_CXX_BOOL, 0, TAG_OK, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 
-                if (flag_finished) {
-                    finished = true;
+                if (finished) {
                     break;
                 }
 
