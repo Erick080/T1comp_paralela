@@ -13,8 +13,8 @@
 #include <chrono>
 #include <mpi.h>
 
-#define NUM_TREES 32
-#define TREES_PER_ROUND 2
+#define NUM_TREES 33
+#define TREES_PER_ROUND 1
 
 // TAGS MPI
 #define TAG_OK 1
@@ -378,6 +378,7 @@ int main(int argc, char** argv) {
         MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
         
+        printf("Processo %d\n", mpi_rank);
         // codigo do coordenador
         if (mpi_rank == 0){ 
             bool flag_finished = false;
@@ -386,30 +387,34 @@ int main(int argc, char** argv) {
             for (int i = 0; i < NUM_TREES;){
                 MPI_Recv(&process_number, 1, MPI_INT, MPI_ANY_SOURCE, TAG_ITERATION_END, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 i += TREES_PER_ROUND;
+                printf("Processo %d pediu trabalho. Total de árvores enviadas: %d/%d\n", process_number, i, NUM_TREES);
                 MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, process_number, TAG_OK, MPI_COMM_WORLD);
             }
             flag_finished = true;
 
             for (int i = 1; i < num_processes; i++){
-                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, i, TAG_NO_TREES_LEFT, MPI_COMM_WORLD);
+                MPI_Send(&flag_finished, 1, MPI_CXX_BOOL, i, TAG_OK, MPI_COMM_WORLD);
             } 
 
             // recebe resultados da inferencia
                 // junta os resultados parciais e calcula o final
+                // nao vai ter inferencia <---- decisão final do grupo
 
         }
         else{
             // codigo do trabalhador
             bool finished = false;
 
-            RandomForest forest(TREES_PER_ROUND, 5, mpi_rank);
+            RandomForest forest(0, 5, mpi_rank);
             int tree_index = 0;
 
             while (!finished){
                 MPI_Send(&mpi_rank, 1, MPI_INT, 0, TAG_ITERATION_END, MPI_COMM_WORLD);
+                // printf("pedindo carga");
                 MPI_Recv(&finished, 1, MPI_CXX_BOOL, 0, TAG_OK, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 
                 if (finished) {
+                    printf("Processo %d não tem mais árvores para treinar\n", mpi_rank);
                     break;
                 }
 
@@ -420,6 +425,7 @@ int main(int argc, char** argv) {
             
             // faz a inferencia assim que termina
                 // envia de volta a matriz de resultados
+                // nao vai ter inferencia <---- decisão final do grupo
             
             MPI_Send(&finished, 1, MPI_CXX_BOOL, 0, TAG_INFERENCE_END, MPI_COMM_WORLD);
         }
